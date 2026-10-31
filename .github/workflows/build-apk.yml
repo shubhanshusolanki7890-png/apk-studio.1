@@ -1,175 +1,144 @@
+name: Build APK Studio Android APK
 
-name: Build Android APK
+# Put this file at: .github/workflows/build-apk.yml
+# Builds the Web IDE into the WebView assets, then compiles a debug APK
+# (Gradle 8.5 / AGP 8.2.2 / JDK 17 / Android SDK 34).
 
 on:
   push:
-    branches:
-      - main
-      - master
-
+    branches: [main, master]
   pull_request:
-    branches:
-      - main
-      - master
-
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: build-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build APK Studio Android Application
+  build-apk:
+    name: Build debug APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract Project Archive
+      # Works whether the project files are in the repo or you uploaded
+      # apk-studio.zip. A ZIP is extracted inside the runner only; nothing is
+      # committed or pushed back.
+      - name: Locate project root (extract uploaded ZIP if needed)
         shell: bash
         run: |
           set -euo pipefail
 
-          if ! find . -maxdepth 6 -path '*/app-shell/gradlew' -print -quit | grep -q .; then
-            ZIP_FILE=$(find . -maxdepth 3 -type f -iname "*.zip" -print -quit)
+          APP_SHELL_DIR="$(find . -maxdepth 4 -type d -name app-shell -not -path '*/node_modules/*' -print -quit)"
 
+          if [ -z "$APP_SHELL_DIR" ]; then
+            ZIP_FILE="$(find . -maxdepth 2 -type f -iname '*.zip' -not -path './.git/*' -print -quit)"
             if [ -z "$ZIP_FILE" ]; then
-              echo "ERROR: No Android project or ZIP archive found."
+              echo "::error::No app-shell/ directory and no .zip file found in the repository."
+              ls -la
               exit 1
             fi
-
-            echo "Extracting: $ZIP_FILE"
-
-            mkdir -p /tmp/apk-studio-extract
-            unzip -q -o "$ZIP_FILE" -d /tmp/apk-studio-extract
-
-            INNER_APP=$(find /tmp/apk-studio-extract -maxdepth 6 -path '*/app-shell/gradlew' -print -quit)
-
-            if [ -z "$INNER_APP" ]; then
-              echo "ERROR: app-shell/gradlew not found inside archive."
+            echo "Extracting $ZIP_FILE"
+            mkdir -p _extracted
+            unzip -q -o "$ZIP_FILE" -d _extracted
+            APP_SHELL_DIR="$(find _extracted -maxdepth 4 -type d -name app-shell -print -quit)"
+            if [ -z "$APP_SHELL_DIR" ]; then
+              echo "::error::The ZIP does not contain an app-shell/ directory."
               exit 1
             fi
-
-            INNER_ROOT=$(dirname "$(dirname "$INNER_APP")")
-            cp -a "$INNER_ROOT/." "$GITHUB_WORKSPACE/"
           fi
 
-          APP_SHELL=$(find . -maxdepth 6 -path '*/app-shell/gradlew' -print -quit)
-
-          if [ -z "$APP_SHELL" ]; then
-            echo "ERROR: Could not locate Android Gradle project."
-            exit 1
-          fi
-
-          PROJECT_ROOT=$(cd "$(dirname "$(dirname "$APP_SHELL")")" && pwd)
-
-          if [ ! -d "$PROJECT_ROOT/web-ide" ]; then
-            echo "ERROR: web-ide directory missing."
-            exit 1
-          fi
-
+          PROJECT_ROOT="$(cd "$(dirname "$APP_SHELL_DIR")" && pwd)"
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+          echo "Project root: $PROJECT_ROOT"
 
-          echo "Project located at: $PROJECT_ROOT"
-
-      - name: Setup Node.js 20
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Web IDE Dependencies
-        working-directory: ${{ env.PROJECT_ROOT }}/web-ide
-        run: npm ci --no-audit --no-fund
-
-      - name: Build Web IDE Frontend
-        working-directory: ${{ env.PROJECT_ROOT }}/web-ide
-        run: node scripts/build-web-ide.cjs
-
-      - name: Verify Frontend Assets
+      # --prefix keeps npm from treating the repo root as a workspace, so only
+      # the Web IDE dependencies are installed (not the backend's native deps).
+      # The build script uses Vite when available and falls back to its
+      # built-in compiler, so the assets are always produced.
+      - name: Build Web IDE into app-shell assets
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          cd "$PROJECT_ROOT/web-ide"
+          npm install --prefix . --no-audit --no-fund
+          npm run build --prefix .
 
+      - name: Verify bundled WebView assets
+        shell: bash
+        run: |
+          set -euo pipefail
           WEBAPP="$PROJECT_ROOT/app-shell/app/src/main/assets/webapp"
+          test -s "$WEBAPP/index.html"
+          ls -la "$WEBAPP" "$WEBAPP/assets"
+          ls "$WEBAPP"/assets/*.js
 
-          if [ ! -f "$WEBAPP/index.html" ]; then
-            echo "ERROR: Frontend index.html missing."
-            exit 1
-          fi
-
-          if [ ! -d "$WEBAPP/assets" ]; then
-            echo "ERROR: Frontend assets directory missing."
-            exit 1
-          fi
-
-          echo "Frontend build verified."
-          find "$WEBAPP" -maxdepth 2 -type f
-
-      - name: Setup JDK 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK Components
-        run: |
-          yes | sdkmanager --licenses || true
+      - name: Install SDK platform 34 and build-tools 34.0.0
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-          sdkmanager \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "platform-tools"
+      # The project's gradle-wrapper.jar is a minimal stub, so we use a real
+      # Gradle 8.5 install instead of ./gradlew.
+      - name: Set up Gradle 8.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
 
-      - name: Verify Gradle Wrapper
-        run: |
-          cd "$PROJECT_ROOT/app-shell"
-
-          chmod +x gradlew
-
-          ./gradlew --version
-
-      - name: Compile Android Debug APK
+      - name: Compile debug APK
+        shell: bash
         run: |
           cd "$PROJECT_ROOT/app-shell"
-
-          ./gradlew assembleDebug \
-            --no-daemon \
-            --stacktrace
+          gradle assembleDebug --stacktrace
 
       - name: Verify APK
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          APK="$PROJECT_ROOT/app-shell/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
+          echo "sha256: $SHA"
 
-          APK_FILE="$PROJECT_ROOT/app-shell/app/build/outputs/apk/debug/app-debug.apk"
+          # Confirm the Web IDE is really packaged inside the APK.
+          unzip -l "$APK" > "$RUNNER_TEMP/apk-listing.txt"
+          grep -q 'AndroidManifest.xml' "$RUNNER_TEMP/apk-listing.txt"
+          grep -q 'assets/webapp/index.html' "$RUNNER_TEMP/apk-listing.txt"
 
-          if [ ! -f "$APK_FILE" ]; then
-            echo "ERROR: APK compilation failed."
-            find "$PROJECT_ROOT/app-shell" -name "*.apk" -type f
-            exit 1
-          fi
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          cp "$APK" "$GITHUB_WORKSPACE/apk-output/app-debug.apk"
 
-          echo "APK successfully generated."
+          {
+            echo "### APK built"
+            echo "- Size: $(du -h "$APK" | cut -f1)"
+            echo "- SHA-256: \`$SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          ls -lh "$APK_FILE"
-          sha256sum "$APK_FILE"
-
-          mkdir -p "$GITHUB_WORKSPACE/output-apk"
-
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output-apk/app-debug.apk"
-
-      - name: Upload Android APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk-studio-debug-apk
-          path: output-apk/app-debug.apk
+          path: apk-output/app-debug.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
           
