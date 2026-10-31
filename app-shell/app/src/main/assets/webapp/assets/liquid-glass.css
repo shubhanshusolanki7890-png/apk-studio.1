@@ -1,0 +1,386 @@
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-bg-strong: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: rgba(31, 38, 135, 0.12);
+  --text-main: #1d1d1f;
+  --text-sub: #515154;
+  --accent-primary: #4f46e5;
+  --accent-secondary: #db2777;
+  --surface-code: rgba(15, 23, 42, 0.88);
+  --surface-code-text: #f8fafc;
+}
+
+body.theme-dark {
+  --glass-bg: rgba(15, 23, 42, 0.58);
+  --glass-bg-strong: rgba(30, 41, 59, 0.78);
+  --glass-border: rgba(148, 163, 184, 0.28);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+  --text-main: #f8fafc;
+  --text-sub: #cbd5e1;
+  --accent-primary: #6366f1;
+  --accent-secondary: #ec4899;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+  position: relative;
+  overflow-x: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding: 16px;
+  color: var(--text-main);
+  transition: background 0.35s ease, color 0.25s ease;
+}
+
+body.theme-dark {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 52%, #311042 100%);
+}
+
+/* Floating Animated Orbs for Glass Refraction */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  z-index: 0;
+  filter: blur(50px);
+  animation: float 12s infinite ease-in-out alternate;
+  pointer-events: none;
+}
+
+body::before {
+  width: 350px;
+  height: 350px;
+  background: rgba(120, 119, 252, 0.6);
+  top: 5%;
+  left: 10%;
+}
+
+body::after {
+  width: 300px;
+  height: 300px;
+  background: rgba(253, 187, 45, 0.5);
+  bottom: 5%;
+  right: 10%;
+  animation-delay: -6s;
+}
+
+@keyframes float {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(40px, -40px) scale(1.1);
+  }
+}
+
+#root {
+  width: 100%;
+  max-width: 1380px;
+  min-height: calc(100vh - 32px);
+  display: flex;
+  z-index: 2;
+}
+
+/* Main Responsive Wrapper */
+.liquid-wrapper {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1380px;
+  min-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Liquid Glass Container Styles */
+.liquid-glass-panel {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 20px 40px var(--glass-shadow),
+    inset 0 2px 2px rgba(255, 255, 255, 0.8),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--glass-border);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* The Refraction Backdrop (Isolated to protect crisp text) */
+.glass-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--glass-bg);
+  backdrop-filter: brightness(1.05) blur(24px);
+  -webkit-backdrop-filter: brightness(1.05) blur(24px);
+  filter: url('#liquid-refraction');
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Foreground Content Layer */
+.panel-content {
+  position: relative;
+  z-index: 5;
+  padding: 22px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar / Navigation Styling */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.nav-scroll-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.nav-scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-item {
+  position: relative;
+  z-index: 10;
+  padding: 12px 16px;
+  border-radius: 14px;
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  white-space: nowrap;
+  text-align: left;
+  user-select: none;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+  border-color: rgba(255, 255, 255, 0.65);
+  transform: translateY(-1px);
+}
+
+body.theme-dark .nav-item:hover,
+body.theme-dark .nav-item.active {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(129, 140, 248, 0.45);
+}
+
+/* Main Content Grid */
+.main-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.header-title {
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+}
+
+.header-sub {
+  color: var(--text-sub);
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-top: auto;
+}
+
+.metric-card {
+  position: relative;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 20px;
+  padding: 20px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+body.theme-dark .metric-card {
+  background: rgba(30, 41, 59, 0.55);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.metric-val {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 8px 0 4px 0;
+}
+
+/* Glass Buttons, Inputs, Badges */
+.glass-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  color: var(--text-main);
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.glass-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.glass-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.glass-btn-primary {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.glass-btn-danger {
+  background: rgba(239, 68, 68, 0.16);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+body.theme-dark .glass-btn-danger {
+  color: #f87171;
+}
+
+.glass-input,
+.glass-select,
+.glass-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  color: var(--text-main);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-input:focus,
+.glass-select:focus,
+.glass-textarea:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+}
+
+/* Mobile Coding Accessory Bar */
+.symbol-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  scrollbar-width: none;
+}
+
+.symbol-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.symbol-key {
+  min-width: 34px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.95);
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.symbol-key:active {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+/* Responsive Breakpoints (Tablet & PC) */
+@media (min-width: 768px) {
+  body {
+    padding: 24px;
+  }
+  .liquid-wrapper {
+    flex-direction: row;
+    min-height: calc(100vh - 48px);
+    gap: 20px;
+  }
+  .sidebar {
+    width: 260px;
+  }
+  .nav-scroll-row {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+  .nav-item:hover,
+  .nav-item.active {
+    transform: translateX(4px);
+  }
+  .panel-content {
+    padding: 28px;
+  }
+  .header-title {
+    font-size: 2rem;
+  }
+}

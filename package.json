@@ -1,0 +1,26 @@
+{
+  "name": "apk-studio",
+  "version": "2.0.0",
+  "private": true,
+  "description": "APK STUDIO — Mobile-First Web & Hybrid Android APK IDE with Liquid Glass UI",
+  "workspaces": [
+    "web-ide",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm --prefix web-ide run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "npm --prefix web-ide run build && npm --prefix backend run build",
+    "build:web": "npm --prefix web-ide run build",
+    "build:backend": "npm --prefix backend run build",
+    "start": "node backend/dist/server.js",
+    "test": "node web-ide/scripts/run-tests.cjs"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/preset-env": "^7.24.0",
+    "@babel/preset-react": "^7.23.3",
+    "@babel/preset-typescript": "^7.23.3",
+    "typescript": "^5.3.3"
+  }
+}

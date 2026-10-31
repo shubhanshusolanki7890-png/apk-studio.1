@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>Studio.io — APK STUDIO Liquid Glass IDE</title>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Supplied Liquid Glass Refraction SVG Filter -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position: absolute; width: 0; height: 0; pointer-events: none;" aria-hidden="true">
+      <defs>
+        <filter id="liquid-refraction">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+    </svg>
+
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
