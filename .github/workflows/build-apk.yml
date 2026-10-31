@@ -113,6 +113,24 @@ jobs:
           gradle-version: '8.5'
           validate-wrappers: false
 
+      # The launcher icons reference @color/theme_color, but the project has no
+      # colors.xml, so resource linking fails. Create it only if it is missing.
+      - name: Add missing theme_color resource
+        shell: bash
+        run: |
+          set -euo pipefail
+          VALUES="$PROJECT_ROOT/app-shell/app/src/main/res/values"
+          mkdir -p "$VALUES"
+          if ! grep -rqs 'name="theme_color"' "$VALUES"; then
+            cat > "$VALUES/colors.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="theme_color">#4F46E5</color>
+          </resources>
+          EOF
+            echo "Created $VALUES/colors.xml"
+          fi
+
       - name: Compile debug APK
         shell: bash
         run: |
