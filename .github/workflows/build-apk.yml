@@ -24,7 +24,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          # If app-shell is not yet extracted, find and extract any .zip archive in the repo
           if [ -z "$(find . -maxdepth 4 -path '*/app-shell/gradlew' -print -quit)" ]; then
             ZIP_FILE=$(find . -maxdepth 2 -iname "*.zip" -print -quit)
             if [ -n "$ZIP_FILE" ]; then
@@ -39,8 +38,8 @@ jobs:
             ls -la
             exit 1
           fi
-          PROJECT_ROOT=$(dirname "$APP_SHELL_DIR")
-          echo "Resolved PROJECT_ROOT=$PROJECT_ROOT"
+          PROJECT_ROOT=$(cd "$(dirname "$APP_SHELL_DIR")" && pwd)
+          echo "Resolved absolute PROJECT_ROOT=$PROJECT_ROOT"
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
 
       - name: Set up Node.js 20
@@ -50,11 +49,9 @@ jobs:
 
       - name: Build Web IDE Frontend Bundle
         run: |
-          cd "$PROJECT_ROOT/web-ide"
-          npm install --no-audit --no-fund || true
-          node scripts/build-web-ide.cjs
+          node "$PROJECT_ROOT/web-ide/scripts/build-web-ide.cjs"
           test -f "$PROJECT_ROOT/app-shell/app/src/main/assets/webapp/index.html"
-          echo "Frontend assets successfully bundled into Android app-shell."
+          ls -la "$PROJECT_ROOT/app-shell/app/src/main/assets/webapp/"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
