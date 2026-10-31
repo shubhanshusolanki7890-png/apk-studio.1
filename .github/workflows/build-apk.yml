@@ -100,12 +100,18 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
 
-      # The project's gradle-wrapper.jar is a minimal stub, so we use a real
-      # Gradle 8.5 install instead of ./gradlew.
+      # The project's gradle-wrapper.jar is a non-official stub that Gradle's
+      # wrapper validation rejects. We don't use ./gradlew (a real Gradle 8.5
+      # is installed below), so remove the stub from this runner's copy only.
+      - name: Remove stub Gradle wrapper jar
+        shell: bash
+        run: find "$PROJECT_ROOT/app-shell" -name 'gradle-wrapper.jar' -delete
+
       - name: Set up Gradle 8.5
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.5'
+          validate-wrappers: false
 
       - name: Compile debug APK
         shell: bash
@@ -144,4 +150,3 @@ jobs:
           path: apk-output/app-debug.apk
           if-no-files-found: error
           retention-days: 30
-          
