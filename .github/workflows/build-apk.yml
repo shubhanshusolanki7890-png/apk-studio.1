@@ -1,0 +1,127 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Extract Project, Build Frontend & Compile Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Project ZIP & Auto-Commit Extracted Contents (First Run)
+        shell: bash
+        run: |
+          set -e
+          if [ -z "$(find . -maxdepth 4 -path '*/app-shell/gradlew' -print -quit)" ]; then
+            ZIP_FILE=$(find . -maxdepth 2 -iname "*.zip" -print -quit)
+            if [ -n "$ZIP_FILE" ]; then
+              echo "Extracting archive: $ZIP_FILE"
+              mkdir -p /tmp/extracted_zip
+              unzip -q -o "$ZIP_FILE" -d /tmp/extracted_zip
+
+              # Locate the inner root containing app-shell and web-ide
+              INNER_APP_SHELL=$(find /tmp/extracted_zip -maxdepth 4 -type d -name "app-shell" -print -quit)
+              if [ -n "$INNER_APP_SHELL" ]; then
+                INNER_ROOT=$(dirname "$INNER_APP_SHELL")
+                cp -rn "$INNER_ROOT/"* . 2>/dev/null || cp -r "$INNER_ROOT/"* .
+                if [ -f "$INNER_ROOT/.gitignore" ]; then
+                  cp "$INNER_ROOT/.gitignore" .gitignore
+                fi
+              fi
+
+              # Commit extracted project structure back to the repository if on a branch push
+              if [ "${GITHUB_EVENT_NAME}" != "pull_request" ] && [ -n "${GITHUB_REF_NAME}" ]; then
+                git config user.name "github-actions[bot]"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                git rm -f "$ZIP_FILE" || true
+                git add -A
+                if ! git diff --cached --quiet; then
+                  git commit -m "chore: auto-extract project contents from $ZIP_FILE [skip ci]" || true
+                  git push origin "HEAD:${GITHUB_REF_NAME}" || echo "Notice: Could not push extracted files back to branch; continuing build."
+                fi
+              fi
+            fi
+          fi
+
+          APP_SHELL_DIR=$(find . -maxdepth 5 -type d -name "app-shell" -print -quit)
+          if [ -z "$APP_SHELL_DIR" ]; then
+            echo "ERROR: Could not locate app-shell directory in repository."
+            ls -la
+            exit 1
+          fi
+          PROJECT_ROOT=$(dirname "$APP_SHELL_DIR")
+          echo "Resolved PROJECT_ROOT=$PROJECT_ROOT"
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Web IDE dependencies & build production assets into app-shell
+        run: |
+          cd "$PROJECT_ROOT/web-ide"
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Verify bundled WebView assets exist in app-shell
+        run: |
+          test -f "$PROJECT_ROOT/app-shell/app/src/main/assets/webapp/index.html"
+          ls -la "$PROJECT_ROOT/app-shell/app/src/main/assets/webapp/"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK Licenses & Install SDK Platform 34 + Build Tools 34.0.0
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Setup Gradle 8.5
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Compile Debug APK (assembleDebug)
+        run: |
+          cd "$PROJECT_ROOT/app-shell"
+          chmod +x ./gradlew
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Verify Generated APK Artifact
+        run: |
+          APK_PATH="$PROJECT_ROOT/app-shell/app/build/outputs/apk/debug/app-debug.apk"
+          ls -lh "$APK_PATH"
+          sha256sum "$APK_PATH"
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          cp "$APK_PATH" "$GITHUB_WORKSPACE/apk-output/app-debug.apk"
+
+      - name: Upload Compiled Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: apk-output/app-debug.apk
+          if-no-files-found: error
